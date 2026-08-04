@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instagram Followback Checker — See Who Doesn't Follow You Back</title>
+  <meta name="description" content="A minimal, wireframe-style Instagram followers and following comparison tool. Check who doesn't follow you back privately in your browser.">
+  <link rel="stylesheet" href="css/wireframe.css">
+</head>
+<body>
+  <div class="wireframe-container">
+    <!-- HEADER -->
+    <header class="wireframe-header">
+      <div class="wireframe-title">Instagram Followback Checker</div>
+      <div class="badge-group">
+        <span class="tech-badge local-badge">🔒 100% Private • Browser-Only Processing</span>
+      </div>
+    </header>
+
+    <!-- INSTRUCTION & ACTION BAR -->
+    <div class="instruction-bar">
+      <span>Compare who you follow against who follows you back.</span>
+      <button id="demo-btn" class="demo-btn" type="button">Try Demo Data</button>
+    </div>
+
+    <!-- DROP ZONE GRID -->
+    <section class="dropzone-grid" aria-label="File upload drop zones">
+      <!-- Followers Dropzone -->
+      <div class="dropzone-card">
+        <div class="card-header">
+          <span>Step 1 — Followers File</span>
+          <span id="followers-status" class="file-status">No file selected</span>
+        </div>
+        <label id="followers-dropzone" class="dropzone-area" for="followers-file-input">
+          <span class="dropzone-label">+ Drop followers_1.json here</span>
+          <span class="dropzone-subtext">Click or drag to upload (supports multiple files)</span>
+          <input id="followers-file-input" class="dropzone-input" type="file" accept=".json,application/json" multiple>
+        </label>
+      </div>
+
+      <!-- Following Dropzone -->
+      <div class="dropzone-card">
+        <div class="card-header">
+          <span>Step 2 — Following File</span>
+          <span id="following-status" class="file-status">No file selected</span>
+        </div>
+        <label id="following-dropzone" class="dropzone-area" for="following-file-input">
+          <span class="dropzone-label">+ Drop following.json here</span>
+          <span class="dropzone-subtext">Click or drag your following.json file</span>
+          <input id="following-file-input" class="dropzone-input" type="file" accept=".json,application/json">
+        </label>
+      </div>
+    </section>
+
+    <!-- STATS DASHBOARD BAR -->
+    <section class="stats-bar" aria-label="Summary Statistics">
+      <div class="stat-cell">
+        <span class="stat-label">Total Followers</span>
+        <span id="stat-followers" class="stat-value">0</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Total Following</span>
+        <span id="stat-following" class="stat-value">0</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Not Following Back</span>
+        <span id="stat-not-following-back" class="stat-value">0</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">You Don't Follow Back</span>
+        <span id="stat-not-followed-back" class="stat-value">0</span>
+      </div>
+      <div class="stat-cell">
+        <span class="stat-label">Mutual Followers</span>
+        <span id="stat-mutuals" class="stat-value">0</span>
+      </div>
+    </section>
+
+    <!-- TABS BAR -->
+    <nav class="tabs-bar" aria-label="Result View Tabs">
+      <button class="tab-btn active" data-tab="notFollowingBack" type="button">
+        Not Following You Back <span id="count-not-following-back" class="tab-count">0</span>
+      </button>
+      <button class="tab-btn" data-tab="notFollowedBack" type="button">
+        You Don't Follow Back <span id="count-not-followed-back" class="tab-count">0</span>
+      </button>
+      <button class="tab-btn" data-tab="mutuals" type="button">
+        Mutual Followers <span id="count-mutuals" class="tab-count">0</span>
+      </button>
+    </nav>
+
+    <!-- FILTER & ACTION TOOLBAR -->
+    <div class="list-toolbar">
+      <div class="search-wrapper">
+        <input id="search-input" class="search-input" type="search" placeholder="Filter by username (@xyz)..." aria-label="Filter username">
+      </div>
+      <div class="toolbar-actions">
+        <button id="copy-btn" class="action-btn" type="button">⎘ Copy List</button>
+        <button id="download-btn" class="action-btn" type="button">↓ Download .txt</button>
+      </div>
+    </div>
+
+    <!-- MAIN LIST VIEW -->
+    <main id="list-container" class="list-container" aria-label="User relationships list">
+      <!-- Populated dynamically via JS -->
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="wireframe-footer">
+      <span>All calculations happen locally on your device • Your data is never uploaded</span>
+      <span>Not affiliated with or endorsed by Instagram / Meta</span>
+    </footer>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast-msg" role="status" aria-live="polite"></div>
+
+  <!-- JS APP ENTRY -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

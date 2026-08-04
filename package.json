@@ -1,0 +1,19 @@
+{
+  "name": "instagram-followback",
+  "version": "1.0.0",
+  "description": "Compare Instagram followers and following lists locally.",
+  "type": "module",
+  "scripts": {
+    "test:unit": "node test/verify_parser.js",
+    "test": "npm run test:unit"
+  },
+  "keywords": [
+    "instagram",
+    "followers",
+    "following",
+    "github-pages",
+    "wireframe"
+  ],
+  "author": "",
+  "license": "MIT"
+}
