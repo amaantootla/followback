@@ -1,153 +1,131 @@
 /**
- * Robust Instagram JSON Parser
- * Handles various Instagram export JSON formats for followers and following lists.
+ * Instagram export parsing.
+ *
+ * Every parse function returns a Map<username, timestampSeconds | null>.
+ * Maps expose .has()/.size/.keys() just like Sets, so callers that only need
+ * membership can treat them as sets.
  */
+
+const USERNAME_RE = /^[a-z0-9._]{1,30}$/;
+const NON_PROFILE_PATHS = new Set([
+  'accounts', 'explore', 'p', 'reel', 'reels', 'stories', 'direct', 'about', 'legal', 'developer', 'web', 'tv',
+]);
 
 export function normalizeUsername(raw) {
   if (!raw || typeof raw !== 'string') return null;
   let name = raw.trim().toLowerCase();
-  
-  // If it's a full Instagram URL, extract the username
+
   if (name.includes('instagram.com/')) {
-    try {
-      // Remove query params or hash if any
-      const urlObj = new URL(name.startsWith('http') ? name : `https://${name}`);
-      const parts = urlObj.pathname.split('/').filter(Boolean);
-      // Instagram URLs might be /_u/username or /username
-      if (parts.length > 0) {
-        name = parts[parts.length - 1] === '' ? parts[parts.length - 2] : parts[parts.length - 1];
-        if (parts[0] === '_u' && parts.length > 1) {
-          name = parts[1];
-        }
-      }
-    } catch (e) {
-      // Fallback regex extraction if URL parsing fails
-      const match = name.match(/instagram\.com\/(?:_u\/)?([^\/\?#]+)/);
-      if (match && match[1]) {
-        name = match[1];
-      }
-    }
+    const match = name.match(/instagram\.com\/(?:_u\/)?([^/?#\s]+)/);
+    if (!match) return null;
+    name = match[1];
+    if (NON_PROFILE_PATHS.has(name)) return null;
   }
 
-  // Remove leading @ if present
-  if (name.startsWith('@')) {
-    name = name.slice(1);
-  }
-
-  // Clean up any remaining trailing slashes or spaces
+  if (name.startsWith('@')) name = name.slice(1);
   name = name.replace(/\/+$/, '').trim();
 
-  return name || null;
+  return USERNAME_RE.test(name) ? name : null;
+}
+
+function extractRecord(item) {
+  if (!item) return null;
+  if (typeof item === 'string') return { username: normalizeUsername(item), ts: null };
+
+  let username = null;
+  let ts = null;
+  const sld = Array.isArray(item.string_list_data) ? item.string_list_data[0] : null;
+
+  if (sld) {
+    if (typeof sld.timestamp === 'number') ts = sld.timestamp;
+    username = normalizeUsername(sld.value) || normalizeUsername(sld.href);
+  }
+  if (!username) username = normalizeUsername(item.title);
+  if (!username) username = normalizeUsername(item.username) || normalizeUsername(item.value) || normalizeUsername(item.href);
+  if (ts === null && typeof item.timestamp === 'number') ts = item.timestamp;
+
+  return username ? { username, ts } : null;
+}
+
+function recordsToMap(items) {
+  const out = new Map();
+  for (const item of items) {
+    const rec = extractRecord(item);
+    if (rec && rec.username && !out.has(rec.username)) out.set(rec.username, rec.ts);
+  }
+  return out;
+}
+
+/** Old (pre-2021) exports: { "followers": { "user": "2019-01-01T..." } } */
+function objectMapToMap(obj) {
+  const out = new Map();
+  for (const [key, value] of Object.entries(obj)) {
+    const username = normalizeUsername(key);
+    if (!username) continue;
+    const parsed = typeof value === 'string' ? Date.parse(value) : NaN;
+    out.set(username, Number.isNaN(parsed) ? null : Math.floor(parsed / 1000));
+  }
+  return out;
+}
+
+function pickArray(json, preferredKeys) {
+  if (Array.isArray(json)) return json;
+  if (!json || typeof json !== 'object') return [];
+  for (const key of preferredKeys) {
+    if (Array.isArray(json[key])) return json[key];
+  }
+  for (const value of Object.values(json)) {
+    if (Array.isArray(value)) return value;
+  }
+  return [];
+}
+
+export function parseFollowers(json) {
+  return recordsToMap(pickArray(json, ['relationships_followers', 'followers']));
+}
+
+export function parseFollowing(json) {
+  return recordsToMap(pickArray(json, ['relationships_following', 'following']));
+}
+
+export function parsePending(json) {
+  return recordsToMap(pickArray(json, ['relationships_follow_requests_sent']));
+}
+
+/** Pulls every Instagram profile link out of an HTML export page. */
+export function parseHtmlProfiles(html) {
+  const out = new Map();
+  const re = /href\s*=\s*["'](https?:\/\/(?:www\.)?instagram\.com\/[^"']+)["']/gi;
+  let m;
+  while ((m = re.exec(html))) {
+    const username = normalizeUsername(m[1]);
+    if (username && !out.has(username)) out.set(username, null);
+  }
+  return out;
 }
 
 /**
- * Extracts a username from a single record item in Instagram's JSON list
+ * Looks at a parsed JSON export file and says what it contains.
+ * Returns one of: 'followers' | 'following' | 'pending' | 'connections' | 'array' | null
  */
-function extractUsernameFromItem(item) {
-  if (!item) return null;
-
-  // Case 1: string directly
-  if (typeof item === 'string') {
-    return normalizeUsername(item);
-  }
-
-  // Case 2: check string_list_data[0].value
-  if (Array.isArray(item.string_list_data) && item.string_list_data.length > 0) {
-    const firstObj = item.string_list_data[0];
-    if (firstObj.value && typeof firstObj.value === 'string' && firstObj.value.trim() !== '') {
-      const parsed = normalizeUsername(firstObj.value);
-      if (parsed) return parsed;
-    }
-    // Check href if value is empty
-    if (firstObj.href && typeof firstObj.href === 'string' && firstObj.href.trim() !== '') {
-      const parsed = normalizeUsername(firstObj.href);
-      if (parsed) return parsed;
-    }
-  }
-
-  // Case 3: check title property
-  if (item.title && typeof item.title === 'string' && item.title.trim() !== '') {
-    const parsed = normalizeUsername(item.title);
-    if (parsed) return parsed;
-  }
-
-  // Case 4: check if item itself has value or href or username
-  if (item.username) return normalizeUsername(item.username);
-  if (item.value) return normalizeUsername(item.value);
-  if (item.href) return normalizeUsername(item.href);
-
+export function detectJsonKind(json) {
+  if (Array.isArray(json)) return 'array';
+  if (!json || typeof json !== 'object') return null;
+  if (Array.isArray(json.relationships_followers)) return 'followers';
+  if (Array.isArray(json.relationships_following)) return 'following';
+  if (Array.isArray(json.relationships_follow_requests_sent)) return 'pending';
+  if (isPlainObject(json.followers) && isPlainObject(json.following)) return 'connections';
   return null;
 }
 
-/**
- * Parses a followers JSON structure (can be array or wrapped object)
- * Returns a Set of normalized usernames
- */
-export function parseFollowers(jsonInput) {
-  const usernames = new Set();
-  let items = [];
-
-  if (Array.isArray(jsonInput)) {
-    items = jsonInput;
-  } else if (jsonInput && typeof jsonInput === 'object') {
-    // Check common wrapper properties
-    if (Array.isArray(jsonInput.relationships_followers)) {
-      items = jsonInput.relationships_followers;
-    } else if (Array.isArray(jsonInput.followers)) {
-      items = jsonInput.followers;
-    } else {
-      // Look for first array property in object
-      for (const key of Object.keys(jsonInput)) {
-        if (Array.isArray(jsonInput[key])) {
-          items = jsonInput[key];
-          break;
-        }
-      }
-    }
-  }
-
-  for (const item of items) {
-    const username = extractUsernameFromItem(item);
-    if (username) {
-      usernames.add(username);
-    }
-  }
-
-  return usernames;
+export function parseConnections(json) {
+  return {
+    followers: objectMapToMap(json.followers || {}),
+    following: objectMapToMap(json.following || {}),
+    pending: objectMapToMap(json.follow_requests_sent || {}),
+  };
 }
 
-/**
- * Parses a following JSON structure (can be wrapped object or array)
- * Returns a Set of normalized usernames
- */
-export function parseFollowing(jsonInput) {
-  const usernames = new Set();
-  let items = [];
-
-  if (Array.isArray(jsonInput)) {
-    items = jsonInput;
-  } else if (jsonInput && typeof jsonInput === 'object') {
-    if (Array.isArray(jsonInput.relationships_following)) {
-      items = jsonInput.relationships_following;
-    } else if (Array.isArray(jsonInput.following)) {
-      items = jsonInput.following;
-    } else {
-      // Look for first array property in object
-      for (const key of Object.keys(jsonInput)) {
-        if (Array.isArray(jsonInput[key])) {
-          items = jsonInput[key];
-          break;
-        }
-      }
-    }
-  }
-
-  for (const item of items) {
-    const username = extractUsernameFromItem(item);
-    if (username) {
-      usernames.add(username);
-    }
-  }
-
-  return usernames;
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
